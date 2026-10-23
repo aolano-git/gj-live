@@ -69,8 +69,13 @@ select,input{font:inherit;color:var(--fg);background:var(--surface);padding:10px
 .words span:nth-child(3n+2){color:var(--orange)}
 .empty{color:var(--muted);font-size:20px}
 .join{display:flex;gap:16px;align-items:center}
-.join .qr{background:#fff;padding:8px;border-radius:8px;line-height:0}
-.join .qr img{width:120px;height:120px}
+.join{flex-direction:column;align-items:stretch}
+.join .qr{background:#fff;border-radius:8px;line-height:0;align-self:center}
+.join .qr img{width:180px;height:auto;image-rendering:pixelated}
+#bigqr{position:fixed;inset:0;z-index:60;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;cursor:pointer}
+#bigqr img{width:min(70vh,80vw);height:auto;image-rendering:pixelated}
+#bigqr p{margin:0;font-family:var(--display);font-size:clamp(24px,3vw,40px);color:#0B2343;text-align:center}
+#bigqr small{font-family:var(--body);font-size:16px;color:#5B6A80}
 .join p{margin:0;font-size:14px;word-break:break-all}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -104,11 +109,13 @@ select,input{font:inherit;color:var(--fg);background:var(--surface);padding:10px
     </section>
     <section class="panel join">
       <div class="qr" id="qr"></div>
+      <button class="btn sec" id="showQr">Show big QR on screen</button>
       <p><b>Join link</b><br><span id="joinUrl"></span></p>
     </section>
   </aside>
   <section class="panel" id="stage"><p class="empty">Loading questions…</p></section>
 </div></main>
+<div id="bigqr" hidden></div>
 <script>
 const ENDPOINT="https://script.google.com/macros/s/AKfycbwAF_Vn0pFJ2t0GmYpT8XCzgIri-FTACefaKpvU8rZxlRmMSF8Q0Xq6osMqWImQ1hxBoA/exec";
 let Q=[],state=null,viewing=null,pin="",revealed=false,resTimer=null;
@@ -116,9 +123,13 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 try{pin=localStorage.getItem("gjPin")||""}catch(e){}
 
-const join=location.href.replace(/present\.html.*$/,"");
+const JOIN_URL="https://aolano-git.github.io/gj-live/";
+const join=location.protocol==="https:"?location.href.replace(/present(\.html)?([?#].*)?$/,""):JOIN_URL;
 $("joinUrl").textContent=join;
-try{const qr=qrcode(0,"M");qr.addData(join);qr.make();$("qr").innerHTML=qr.createImgTag(6,0)}catch(e){$("qr").hidden=true}
+try{const qr=qrcode(0,"M");qr.addData(join);qr.make();$("qr").innerHTML=qr.createImgTag(6,24);
+  $("bigqr").innerHTML=qr.createImgTag(12,48)+`<p>Scan to join<br>${join.replace(/^https:\/\//,"")}</p><small>Click anywhere to close</small>`}catch(e){$("qr").hidden=true;$("showQr").hidden=true}
+$("showQr").onclick=()=>{$("bigqr").hidden=false};$("bigqr").onclick=()=>{$("bigqr").hidden=true};
+document.addEventListener("keydown",e=>{if(e.key==="Escape")$("bigqr").hidden=true});
 
 $("clean").onclick=()=>{document.body.classList.toggle("clean");$("clean").textContent=document.body.classList.contains("clean")?"Show controls":"Hide controls"};
 
