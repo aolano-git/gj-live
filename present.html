@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Live Questions Presenter</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+/* Projector layout: narrow control rail on the left (can be hidden), large results stage on the right. */
+:root{--navy:#0B2343;--orange:#F26A10;--bg:#F3F5F8;--surface:#fff;--fg:#13213A;--muted:#5B6A80;--line:#D5DCE6;--sel:#FFF1E6;--ok:#1B7F4B;--okbg:#E3F4EA;
+--display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;--body:"Barlow",system-ui,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.4}
+header{background:var(--orange);color:#fff}
+header .wrap{padding-block:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.wrap{max-width:1400px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.eyebrow{font-family:var(--display);letter-spacing:.14em;text-transform:uppercase;font-size:13px;opacity:.9}
+h1{font-family:var(--display);font-size:clamp(26px,3vw,38px);margin:2px 0 0;line-height:1}
+.hbtn{font:inherit;font-weight:600;background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.5);border-radius:8px;padding:8px 14px;cursor:pointer}
+main .wrap{padding-block:20px 40px;display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start}
+body.clean main .wrap{grid-template-columns:1fr}
+body.clean #rail{display:none}
+@media (max-width:860px){main .wrap{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;min-width:0}
+#rail{display:flex;flex-direction:column;gap:14px}
+h2{font-family:var(--display);font-size:22px;margin:0 0 10px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted)}
+select,input{font:inherit;color:var(--fg);background:var(--surface);padding:10px;border-radius:8px;border:1.5px solid var(--line)}
+.qlist{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow:auto}
+.qi{border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;cursor:pointer;background:var(--surface)}
+.qi.viewing{border-color:var(--navy)}
+.qi.live{border-color:var(--orange);background:var(--sel)}
+.qi .meta{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.pill{background:var(--orange);color:#fff;border-radius:99px;padding:1px 8px;font-weight:600}
+.qi .t{font-weight:500;font-size:15px}
+.btn{font:inherit;font-weight:600;border-radius:8px;padding:10px 14px;border:1.5px solid var(--navy);background:var(--navy);color:#fff;cursor:pointer}
+.btn.sec{background:transparent;color:var(--fg);border-color:var(--line)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.status{font-size:14px;color:var(--muted);min-height:20px}
+.status.bad{color:#B42318}
+#stage{min-height:60vh;display:flex;flex-direction:column;gap:20px}
+.stagehead{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap}
+.bigq{font-family:var(--display);font-size:clamp(30px,3.6vw,52px);line-height:1.08;margin:0;max-width:30ch;text-wrap:balance}
+.count{text-align:right}
+.count b{display:block;font-family:var(--display);font-size:clamp(48px,6vw,84px);line-height:1;color:var(--orange);font-variant-numeric:tabular-nums}
+.count span{color:var(--muted)}
+.closed{display:inline-block;margin-top:6px;background:var(--fg);color:var(--surface);border-radius:99px;padding:2px 10px;font-size:13px;font-weight:600}
+.bars{display:flex;flex-direction:column;gap:12px}
+.bar{display:grid;grid-template-columns:minmax(0,1.1fr) 2fr 110px;gap:14px;align-items:center;font-size:clamp(17px,1.6vw,24px)}
+.bar .lbl{font-weight:600;min-width:0}
+.track{height:clamp(28px,3vw,44px);background:var(--bg);border-radius:8px;overflow:hidden}
+.track i{display:block;height:100%;background:var(--navy);transition:width .6s}
+.bar.right .track i{background:var(--ok)}
+.bar.right .lbl::after{content:" ✓ correct";color:var(--ok);font-size:.75em}
+.bar .n{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.bar .n small{color:var(--muted);font-weight:400}
+.cols{display:grid;grid-template-columns:repeat(11,1fr);gap:8px;align-items:end;height:min(42vh,380px)}
+.col{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;height:100%}
+.col i{width:100%;background:var(--navy);border-radius:6px 6px 0 0;transition:height .6s;min-height:2px}
+.col b{font-family:var(--display);font-size:22px}
+.col small{color:var(--muted);font-variant-numeric:tabular-nums}
+.avg{font-family:var(--display);font-size:28px}
+.avg b{color:var(--orange);font-size:44px}
+.words{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:baseline}
+.words span{font-family:var(--display);color:var(--navy);line-height:1}
+.words span:nth-child(3n+2){color:var(--orange)}
+.empty{color:var(--muted);font-size:20px}
+.join{display:flex;gap:16px;align-items:center}
+.join .qr{background:#fff;padding:8px;border-radius:8px;line-height:0}
+.join .qr img{width:120px;height:120px}
+.join p{margin:0;font-size:14px;word-break:break-all}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <div><div class="eyebrow">Presenter</div><h1 id="event">Live questions</h1></div>
+  <button class="hbtn" id="clean">Hide controls</button>
+</div></header>
+<main><div class="wrap">
+  <aside id="rail">
+    <section class="panel" id="pinBox">
+      <h2>Presenter PIN</h2>
+      <div class="row"><input id="pin" type="password" inputmode="numeric" placeholder="PIN from the Control tab" style="flex:1;min-width:0"><button class="btn" id="pinGo">Unlock</button></div>
+      <p class="status" id="pinMsg"></p>
+    </section>
+    <section class="panel">
+      <h2>Questions</h2>
+      <label class="f">Session<select id="session"></select></label>
+      <div class="qlist" id="qlist" style="margin-top:10px"></div>
+    </section>
+    <section class="panel">
+      <h2>Live control</h2>
+      <div class="row">
+        <button class="btn" id="goLive" disabled>Send to phones</button>
+        <button class="btn sec" id="toggleOpen" disabled>Stop answers</button>
+        <button class="btn sec" id="clear" disabled>Clear phones</button>
+        <button class="btn sec" id="reveal">Show correct answer</button>
+      </div>
+      <p class="status" id="ctlMsg"></p>
+    </section>
+    <section class="panel join">
+      <div class="qr" id="qr"></div>
+      <p><b>Join link</b><br><span id="joinUrl"></span></p>
+    </section>
+  </aside>
+  <section class="panel" id="stage"><p class="empty">Loading questions…</p></section>
+</div></main>
+<script>
+const ENDPOINT="https://script.google.com/macros/s/AKfycbwAF_Vn0pFJ2t0GmYpT8XCzgIri-FTACefaKpvU8rZxlRmMSF8Q0Xq6osMqWImQ1hxBoA/exec";
+let Q=[],state=null,viewing=null,pin="",revealed=false,resTimer=null;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+try{pin=localStorage.getItem("gjPin")||""}catch(e){}
+
+const join=location.href.replace(/present\.html.*$/,"");
+$("joinUrl").textContent=join;
+try{const qr=qrcode(0,"M");qr.addData(join);qr.make();$("qr").innerHTML=qr.createImgTag(6,0)}catch(e){$("qr").hidden=true}
+
+$("clean").onclick=()=>{document.body.classList.toggle("clean");$("clean").textContent=document.body.classList.contains("clean")?"Show controls":"Hide controls"};
+
+async function post(obj){
+  const r=await fetch(ENDPOINT,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(obj)});
+  return r.json();
+}
+async function unlock(){
+  const p=$("pin").value.trim()||pin;if(!p)return;
+  $("pinMsg").textContent="Checking…";$("pinMsg").className="status";
+  try{const d=await post({action:"control",pin:p});
+    if(d.ok){pin=p;try{localStorage.setItem("gjPin",p)}catch(e){}$("pinBox").hidden=true;updateButtons()}
+    else{$("pinMsg").textContent="Wrong PIN. Check the Control tab of your sheet.";$("pinMsg").className="status bad"}
+  }catch(e){$("pinMsg").textContent="Can't reach the sheet. Check the internet.";$("pinMsg").className="status bad"}
+}
+$("pinGo").onclick=unlock;$("pin").addEventListener("keydown",e=>{if(e.key==="Enter")unlock()});
+
+async function loadQuestions(){
+  try{
+    const r=await fetch(ENDPOINT+"?action=questions",{cache:"no-store"});const d=await r.json();
+    Q=d.questions;state=d.state;$("event").textContent=d.event||"Live questions";
+    const sessions=[...new Set(Q.map(q=>q.session||"(no session)"))];
+    const cur=$("session").value;
+    $("session").innerHTML=sessions.map(s=>`<option>${esc(s)}</option>`).join("");
+    const liveQ=state.live&&Q.find(q=>q.id===state.live.id);
+    $("session").value=cur&&sessions.includes(cur)?cur:(liveQ?(liveQ.session||"(no session)"):sessions[0]);
+    if(!viewing)viewing=liveQ?liveQ.id:null;
+    renderList();updateButtons();loadResults();
+  }catch(e){$("stage").innerHTML='<p class="empty">Can\'t reach the sheet. Check the internet and the script link.</p>'}
+}
+$("session").onchange=renderList;
+function renderList(){
+  const s=$("session").value;
+  $("qlist").innerHTML=Q.filter(q=>(q.session||"(no session)")===s).map(q=>{
+    const live=state&&state.live&&state.live.id===q.id;
+    return `<div class="qi${live?" live":""}${viewing===q.id?" viewing":""}" data-id="${esc(q.id)}" tabindex="0"><div class="meta"><span>${esc(q.id)} · ${q.type}</span>${live?'<span class="pill">LIVE</span>':""}</div><div class="t">${esc(q.question)}</div></div>`}).join("")||'<p class="empty">No questions in this session.</p>';
+  $("qlist").querySelectorAll(".qi").forEach(el=>{const f=()=>{viewing=el.dataset.id;revealed=false;$("reveal").textContent="Show correct answer";renderList();updateButtons();loadResults()};el.onclick=f;el.onkeydown=e=>{if(e.key==="Enter")f()}});
+}
+function updateButtons(){
+  const locked=!pin||!$("pinBox").hidden;
+  const isLive=state&&state.live&&state.live.id===viewing;
+  $("goLive").disabled=locked||!viewing||isLive;
+  $("toggleOpen").disabled=locked||!state||!state.live;
+  $("toggleOpen").textContent=state&&state.open?"Stop answers":"Reopen answers";
+  $("clear").disabled=locked||!state||!state.live;
+  const q=Q.find(x=>x.id===viewing);
+  $("reveal").hidden=!(q&&q.type==="choice"&&q.correct);
+}
+async function control(obj,msg){
+  $("ctlMsg").textContent="Updating…";$("ctlMsg").className="status";
+  try{const d=await post(Object.assign({action:"control",pin},obj));
+    if(!d.ok){$("ctlMsg").textContent=d.error==="Wrong PIN"?"Wrong PIN. Unlock again.":"Couldn't update.";$("ctlMsg").className="status bad";if(d.error==="Wrong PIN"){$("pinBox").hidden=false}return}
+    $("ctlMsg").textContent=msg+" Phones update within about 20 seconds.";await loadQuestions();
+  }catch(e){$("ctlMsg").textContent="Can't reach the sheet.";$("ctlMsg").className="status bad"}
+}
+$("goLive").onclick=()=>control({live:viewing,open:true},"Sent to phones.");
+$("toggleOpen").onclick=()=>control({open:!state.open},state.open?"Answers stopped.":"Answers reopened.");
+$("clear").onclick=()=>control({live:""},"Phones cleared.");
+$("reveal").onclick=()=>{revealed=!revealed;$("reveal").textContent=revealed?"Hide correct answer":"Show correct answer";loadResults()};
+
+async function loadResults(){
+  clearTimeout(resTimer);
+  const q=Q.find(x=>x.id===viewing);
+  if(!q){$("stage").innerHTML='<p class="empty">Choose a question on the left, then press "Send to phones".</p>';return}
+  try{
+    const r=await fetch(ENDPOINT+"?action=results&q="+encodeURIComponent(q.id),{cache:"no-store"});const d=await r.json();
+    const live=state&&state.live&&state.live.id===q.id;
+    let body="";const t=d.total;
+    if(d.type==="choice"){const max=Math.max(1,...d.options.map(o=>o.count));
+      body=`<div class="bars">${d.options.map(o=>`<div class="bar${revealed&&o.label===d.correct?" right":""}"><span class="lbl">${esc(o.label)}</span><div class="track"><i style="width:${o.count/max*100}%"></i></div><span class="n">${o.count} <small>${t?Math.round(o.count/t*100):0}%</small></span></div>`).join("")}</div>`}
+    else if(d.type==="scale"){const max=Math.max(1,...d.counts);
+      body=`<p class="avg">Average <b>${d.average==null?"–":d.average}</b> out of 10</p><div class="cols">${d.counts.map((c,i)=>`<div class="col"><small>${c}</small><i style="height:${c/max*100}%"></i><b>${i}</b></div>`).join("")}</div>`}
+    else{const max=Math.max(1,...(d.words||[]).map(w=>w.count));
+      body=d.words&&d.words.length?`<div class="words">${d.words.map(w=>`<span style="font-size:${22+Math.round(w.count/max*48)}px" title="${w.count}">${esc(w.label)}</span>`).join("")}</div>`:'<p class="empty">Waiting for answers…</p>'}
+    $("stage").innerHTML=`<div class="stagehead"><p class="bigq">${esc(q.question)}</p><div class="count"><b>${t}</b><span>answers</span>${live&&!state.open?'<br><span class="closed">Answers stopped</span>':""}${!live?'<br><span class="closed">Not live</span>':""}</div></div>${body}`;
+  }catch(e){}
+  resTimer=setTimeout(loadResults,3000);
+}
+if(pin){$("pin").value="";post({action:"control",pin}).then(d=>{if(d.ok){$("pinBox").hidden=true;updateButtons()}}).catch(()=>{})}
+loadQuestions();setInterval(loadQuestions,20000);
+</script>
+</body>
+</html>

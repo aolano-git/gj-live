@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Live Questions</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Phone first: orange header with the event name, one question card, big tap targets. */
+:root{--navy:#0B2343;--orange:#F26A10;--bg:#F3F5F8;--surface:#fff;--fg:#13213A;--muted:#5B6A80;--line:#D5DCE6;--sel:#FFF1E6;--ok:#1B7F4B;
+--display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;--body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#0A1424;--surface:#13223A;--fg:#E8EEF7;--muted:#9AA9BF;--line:#2A3D5C;--sel:#3A2412;--ok:#5DD39A;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:17px;line-height:1.4;-webkit-tap-highlight-color:transparent;padding-bottom:env(safe-area-inset-bottom,0px)}
+.wrap{max-width:640px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{background:var(--orange);color:#fff;padding-top:env(safe-area-inset-top,0px)}
+header .wrap{padding-block:16px 18px}
+.eyebrow{font-family:var(--display);letter-spacing:.14em;text-transform:uppercase;font-size:13px;opacity:.9}
+h1{font-family:var(--display);font-size:28px;margin:4px 0 0;line-height:1.05}
+main .wrap{padding-block:20px 40px;display:flex;flex-direction:column;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:16px}
+.q{font-family:var(--display);font-size:clamp(24px,6vw,30px);line-height:1.15;margin:0;text-wrap:balance}
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{font:inherit;font-weight:500;text-align:left;padding:14px 16px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--fg);min-height:52px;cursor:pointer}
+.opt[aria-pressed="true"]{border-color:var(--orange);background:var(--sel);box-shadow:0 0 0 2px var(--orange)}
+.scale{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.scale .opt{text-align:center;padding:12px 0;font-family:var(--display);font-size:22px;font-variant-numeric:tabular-nums}
+.ends{display:flex;justify-content:space-between;color:var(--muted);font-size:14px}
+input[type=text]{font:inherit;padding:14px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--fg);width:100%}
+input[type=text]:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 2px var(--orange)}
+.btn{font:inherit;font-weight:600;border-radius:10px;padding:14px 20px;min-height:52px;border:0;background:var(--navy);color:#fff;cursor:pointer}
+@media (prefers-color-scheme:dark){.btn{background:var(--orange)}}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.link{font:inherit;background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;padding:8px;align-self:center}
+.msg{text-align:center;padding:28px 20px}
+.msg h2{font-family:var(--display);font-size:28px;margin:0 0 6px}
+.msg p{margin:0;color:var(--muted)}
+.tick{width:56px;height:56px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;font-size:30px;margin:0 auto 12px}
+.err{color:#B42318;font-size:15px;margin:0}
+button:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+.foot{color:var(--muted);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<header><div class="wrap"><div class="eyebrow">Live questions</div><h1 id="event">Loading…</h1></div></header>
+<main><div class="wrap">
+  <section id="view" class="card msg"><h2>Connecting…</h2><p>One moment.</p></section>
+  <p class="foot">Anonymous. No names are collected.</p>
+</div></main>
+<script>
+const ENDPOINT="https://script.google.com/macros/s/AKfycbwAF_Vn0pFJ2t0GmYpT8XCzgIri-FTACefaKpvU8rZxlRmMSF8Q0Xq6osMqWImQ1hxBoA/exec";
+const view=document.getElementById("view");
+let state=null,choice=null,busy=false,timer=null;
+function deviceId(){try{let id=localStorage.getItem("gjDevice");if(!id){id=Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem("gjDevice",id)}return id}catch(e){return window._d||(window._d="x"+Math.random().toString(36).slice(2))}}
+function answered(q){try{return localStorage.getItem("gjA:"+q)==="1"}catch(e){return !!(window._a&&window._a[q])}}
+function markAnswered(q){try{localStorage.setItem("gjA:"+q,"1")}catch(e){(window._a=window._a||{})[q]=1}}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function poll(){
+  clearTimeout(timer);
+  try{
+    const r=await fetch(ENDPOINT,{cache:"no-store"});const s=await r.json();
+    document.getElementById("event").textContent=s.event||"Live questions";
+    const changed=!state||JSON.stringify(s.live)!==JSON.stringify(state.live)||s.open!==state.open;
+    state=s;
+    if(changed&&!busy)render();
+  }catch(e){if(!state)view.innerHTML='<h2>Can\'t connect</h2><p>Check your internet, then wait a moment.</p>'}
+  timer=setTimeout(poll,12000+Math.random()*8000);
+}
+function waiting(title,text){
+  view.className="card msg";
+  view.innerHTML=`${title.startsWith("✓")?'<div class="tick">✓</div>':""}<h2>${esc(title.replace("✓ ",""))}</h2><p>${esc(text)}</p><button class="link" id="chk">Check for the next question</button>`;
+  document.getElementById("chk").onclick=()=>{view.querySelector("p").textContent="Checking…";poll()};
+}
+function render(){
+  choice=null;
+  const q=state.live;
+  if(!q){waiting("Please wait","The next question will appear here.");return}
+  if(answered(q.id)){waiting("✓ Answer received","Thank you. Wait for the next question.");return}
+  if(!state.open){waiting("Question closed","Wait for the next question.");return}
+  view.className="card";
+  let body="";
+  if(q.type==="choice")body=`<div class="opts">${q.options.map((o,i)=>`<button class="opt" data-v="${esc(o)}" aria-pressed="false">${esc(o)}</button>`).join("")}</div>`;
+  else if(q.type==="scale")body=`<div class="scale">${[...Array(11)].map((_,i)=>`<button class="opt" data-v="${i}" aria-pressed="false">${i}</button>`).join("")}</div><div class="ends"><span>0 = not at all</span><span>10 = completely</span></div>`;
+  else body=`<input type="text" id="txt" maxlength="60" autocomplete="off" placeholder="Type your answer">`;
+  view.innerHTML=`<p class="q">${esc(q.question)}</p>${body}<p class="err" id="err" hidden></p><button class="btn" id="send" disabled>Send answer</button>`;
+  const send=document.getElementById("send");
+  view.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{view.querySelectorAll(".opt").forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");choice=b.dataset.v;send.disabled=false});
+  const txt=document.getElementById("txt");
+  if(txt)txt.oninput=()=>{choice=txt.value.trim();send.disabled=!choice};
+  send.onclick=()=>submit(q.id);
+}
+async function submit(qid){
+  if(choice==null||choice==="")return;
+  busy=true;const send=document.getElementById("send"),err=document.getElementById("err");
+  send.disabled=true;send.textContent="Sending…";err.hidden=true;
+  const body=JSON.stringify({action:"answer",q:qid,answer:choice,device:deviceId()});
+  for(let i=0;i<3;i++){
+    try{
+      const r=await fetch(ENDPOINT,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body});
+      const d=await r.json();
+      busy=false;
+      if(d.ok){markAnswered(qid);waiting("✓ Answer received","Thank you. Wait for the next question.");return}
+      if(d.error==="Question closed"){waiting("Question closed","Your answer came too late. Wait for the next question.");poll();return}
+      err.textContent="That answer couldn't be sent. Please choose again.";err.hidden=false;send.textContent="Send answer";send.disabled=false;return;
+    }catch(e){await new Promise(r=>setTimeout(r,1200*(i+1)))}
+  }
+  busy=false;err.textContent="No connection. Check your internet and press Send again.";err.hidden=false;send.textContent="Send answer";send.disabled=false;
+}
+poll();
+</script>
+</body>
+</html>
